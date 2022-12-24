@@ -31,3 +31,7 @@ func Register[T, V any](c *Converter, f func(T) (V, error)) {
 func WithConverter[T interface{ WithConverter(Converter) }](c Converter) func(T) {
 	return func(v T) { v.WithConverter(c) }
 }
+
+func WithTag[T interface{ WithTag(string) }](s string) func(T) {
+	return func(v T) { v.WithTag(s) }
+}

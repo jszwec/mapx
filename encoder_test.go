@@ -13,9 +13,9 @@ type A struct {
 }
 
 type B struct {
-	B1   int
+	B1   int `custom:"b1"`
 	Ints []int
-	Map  map[string]int
+	Map  map[string]int `custom:"-"`
 }
 
 func TestStruct(t *testing.T) {
@@ -76,6 +76,19 @@ func TestStruct(t *testing.T) {
 					"Ints": []any{float64(1), float64(2)},
 					"Map":  map[string]any{"1": float64(1)},
 				},
+			},
+		},
+		{
+			desc: "with tags",
+			in: B{
+				B1:   200,
+				Ints: []int{1, 2},
+				Map:  map[string]int{"1": 1},
+			},
+			opts: []mapx.EncoderOpt{mapx.WithTag[*mapx.Encoder]("custom")},
+			out: map[string]any{
+				"b1":   200,
+				"Ints": []int{1, 2},
 			},
 		},
 	}

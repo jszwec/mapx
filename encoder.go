@@ -9,6 +9,7 @@ type EncoderOpt func(*Encoder)
 
 type Encoder struct {
 	converter Converter
+	tag       string
 }
 
 func NewEncoder(opts ...EncoderOpt) *Encoder {
@@ -23,9 +24,8 @@ func (e *Encoder) Encode(val any) (map[string]any, error) {
 	return e.encode(reflect.ValueOf(val))
 }
 
-func (e *Encoder) WithConverter(c Converter) {
-	e.converter = c
-}
+func (e *Encoder) WithConverter(c Converter) { e.converter = c }
+func (e *Encoder) WithTag(s string)          { e.tag = s }
 
 func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 	if v.Kind() == reflect.Pointer {
@@ -37,7 +37,7 @@ func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 	}
 
 	fs := cachedFields(typeKey{
-		tag:  "mapx",
+		tag:  defaultTag(e.tag),
 		Type: v.Type(),
 	})
 
@@ -87,4 +87,11 @@ func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 
 func Encode(val any, opts ...EncoderOpt) (map[string]any, error) {
 	return NewEncoder(opts...).encode(reflect.ValueOf(val))
+}
+
+func defaultTag(s string) string {
+	if s == "" {
+		return "mapx"
+	}
+	return s
 }
