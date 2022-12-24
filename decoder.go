@@ -7,6 +7,8 @@ import (
 
 var mapType = reflect.TypeOf((*map[string]any)(nil)).Elem()
 
+type DecoderOpt func(*Decoder)
+
 type DecodeError struct {
 	Value any
 	Type  reflect.Type
@@ -16,19 +18,33 @@ func (e *DecodeError) Error() string {
 	return fmt.Sprintf("mapx: cannot decode value of type %T into %s", e.Value, e.Type)
 }
 
-func Decode(m map[string]any, v any) error {
+type Decoder struct {
+	tag string
+}
+
+func NewDecoder(opts ...DecoderOpt) *Decoder {
+	var dec Decoder
+	for _, opt := range opts {
+		opt(&dec)
+	}
+	return &dec
+}
+
+func (dec *Decoder) Decode(m map[string]any, v any) error {
 	dst := reflect.ValueOf(v)
 
 	if dst.Kind() == reflect.Pointer {
 		dst = dst.Elem()
 	}
 
-	return decode(m, dst)
+	return dec.decode(m, dst)
 }
 
-func decode(m map[string]any, dst reflect.Value) error {
+func (e *Decoder) WithTag(s string) { e.tag = s }
+
+func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 	fields := cachedFields(typeKey{
-		tag:  "mapx",
+		tag:  defaultTag(dec.tag),
 		Type: dst.Type(),
 	})
 
@@ -61,7 +77,7 @@ func decode(m map[string]any, dst reflect.Value) error {
 				case val.CanConvert(f.typ.Elem()):
 					slice.Index(i).Set(val.Convert(f.typ.Elem()))
 				case val.Type().ConvertibleTo(mapType):
-					if err := decode(val.Interface().(map[string]any), slice.Index(i)); err != nil {
+					if err := dec.decode(val.Interface().(map[string]any), slice.Index(i)); err != nil {
 						return err
 					}
 				default:
@@ -74,7 +90,7 @@ func decode(m map[string]any, dst reflect.Value) error {
 			}
 			fv.Set(slice)
 		case f.typ.Kind() == reflect.Struct && typ.ConvertibleTo(mapType):
-			if err := decode(val.Interface().(map[string]any), fv); err != nil {
+			if err := dec.decode(val.Interface().(map[string]any), fv); err != nil {
 				return err
 			}
 		default:
@@ -86,4 +102,8 @@ func decode(m map[string]any, dst reflect.Value) error {
 	}
 
 	return nil
+}
+
+func Decode(m map[string]any, v any, opts ...DecoderOpt) error {
+	return NewDecoder(opts...).Decode(m, v)
 }

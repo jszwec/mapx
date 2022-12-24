@@ -28,7 +28,7 @@ func Register[T, V any](c *Converter, f func(T) (V, error)) {
 	c.m[ftyp.In(0)] = func(v any) (any, error) { return f(v.(T)) }
 }
 
-func WithConverter[T interface{ WithConverter(Converter) }](c Converter) func(T) {
+func WithConverter[T interface{ WithConverter(V) }, V any](c V) func(T) {
 	return func(v T) { v.WithConverter(c) }
 }
 

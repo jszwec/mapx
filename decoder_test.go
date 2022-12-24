@@ -11,8 +11,8 @@ import (
 )
 
 type C struct {
-	A             Int
-	B             string
+	A             Int    `custom:"a"`
+	B             string `custom:"-"`
 	V             any
 	TextMarshaler encoding.TextMarshaler
 }
@@ -37,6 +37,7 @@ func TestDecode(t *testing.T) {
 	fixtures := []struct {
 		desc     string
 		m        map[string]any
+		opts     []mapx.DecoderOpt
 		expected any
 		err      error
 	}{
@@ -69,6 +70,20 @@ func TestDecode(t *testing.T) {
 				B:             "hello",
 				V:             Bool(false),
 				TextMarshaler: tm,
+			},
+			err: nil,
+		},
+		{
+			desc: "custom tag",
+			m: map[string]any{
+				"a": 1,
+				"B": "hello",
+			},
+			expected: &C{
+				A: 1,
+			},
+			opts: []mapx.DecoderOpt{
+				mapx.WithTag[*mapx.Decoder]("custom"),
 			},
 			err: nil,
 		},
@@ -140,7 +155,7 @@ func TestDecode(t *testing.T) {
 		t.Run(f.desc, func(t *testing.T) {
 			dst := reflect.New(reflect.TypeOf(f.expected).Elem())
 
-			if err := mapx.Decode(f.m, dst.Interface()); err != nil {
+			if err := mapx.Decode(f.m, dst.Interface(), f.opts...); err != nil {
 				t.Error(err)
 			}
 
