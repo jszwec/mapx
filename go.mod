@@ -1,4 +1,4 @@
-module mapx
+module github.com/jszwec/mapx
 
 go 1.18
 
