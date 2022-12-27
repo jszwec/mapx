@@ -2,10 +2,11 @@ package mapx_test
 
 import (
 	"encoding"
-	"mapx"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/jszwec/mapx"
 
 	"github.com/google/go-cmp/cmp"
 )

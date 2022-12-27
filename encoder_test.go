@@ -1,8 +1,9 @@
 package mapx_test
 
 import (
-	"mapx"
 	"testing"
+
+	"github.com/jszwec/mapx"
 
 	"github.com/google/go-cmp/cmp"
 )
