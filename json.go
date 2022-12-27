@@ -2,10 +2,10 @@ package mapx
 
 import "reflect"
 
-var JSONConverter Converter
+var JSONConverter EncodingConverter
 
 func init() {
-	Register(&JSONConverter, jsonAny)
+	RegisterEncoder(&JSONConverter, jsonAny)
 }
 
 func jsonAny(val any) (any, error) {

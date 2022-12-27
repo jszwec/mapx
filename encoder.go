@@ -8,7 +8,7 @@ import (
 type EncoderOpt func(*Encoder)
 
 type Encoder struct {
-	converter Converter
+	converter EncodingConverter
 	tag       string
 }
 
@@ -24,8 +24,8 @@ func (e *Encoder) Encode(val any) (map[string]any, error) {
 	return e.encode(reflect.ValueOf(val))
 }
 
-func (e *Encoder) WithConverter(c Converter) { e.converter = c }
-func (e *Encoder) WithTag(s string)          { e.tag = s }
+func (e *Encoder) WithConverter(c EncodingConverter) { e.converter = c }
+func (e *Encoder) WithTag(s string)                  { e.tag = s }
 
 func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 	if v.Kind() == reflect.Pointer {

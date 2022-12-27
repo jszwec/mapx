@@ -19,7 +19,8 @@ func (e *DecodeError) Error() string {
 }
 
 type Decoder struct {
-	tag string
+	converter DecodingConverter
+	tag       string
 }
 
 func NewDecoder(opts ...DecoderOpt) *Decoder {
@@ -40,7 +41,8 @@ func (dec *Decoder) Decode(m map[string]any, v any) error {
 	return dec.decode(m, dst)
 }
 
-func (e *Decoder) WithTag(s string) { e.tag = s }
+func (e *Decoder) WithConverter(c DecodingConverter) { e.converter = c }
+func (e *Decoder) WithTag(s string)                  { e.tag = s }
 
 func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 	fields := cachedFields(typeKey{
@@ -58,6 +60,14 @@ func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 		typ := val.Type()
 
 		fv := dst.Field(f.index[0])
+
+		if conv, ok := dec.converter.m[typ]; ok && fv.Type() == conv.dst {
+			if err := conv.f(v, fv.Addr().Interface()); err != nil {
+				return err
+			}
+			continue
+		}
+
 		switch {
 		case typ == f.typ:
 			fv.Set(val)
@@ -71,6 +81,13 @@ func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 				val := val.Index(i)
 				if val.Type().Kind() == reflect.Interface {
 					val = val.Elem()
+				}
+
+				if conv, ok := dec.converter.m[val.Type()]; ok && f.typ.Elem() == conv.dst {
+					if err := conv.f(val.Interface(), slice.Index(i).Addr().Interface()); err != nil {
+						return err
+					}
+					continue
 				}
 
 				switch {

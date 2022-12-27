@@ -3,6 +3,7 @@ package mapx_test
 import (
 	"encoding"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -31,6 +32,19 @@ type (
 	String string
 	Bool   bool
 )
+
+var stringIntDecConverter = func() mapx.DecodingConverter {
+	var c mapx.DecodingConverter
+	mapx.RegisterDecoder(&c, func(s string, dst *int) error {
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return err
+		}
+		*dst = int(n)
+		return nil
+	})
+	return c
+}()
 
 func TestDecode(t *testing.T) {
 	tm := time.Date(2022, 8, 4, 12, 0, 0, 0, time.UTC)
@@ -146,6 +160,24 @@ func TestDecode(t *testing.T) {
 				"Ints": []float64{1, 2, 3},
 			},
 			expected: &D{
+				Ints: []int{1, 2, 3},
+			},
+			err: nil,
+		},
+		{
+			desc: "with custom decoder",
+			m: map[string]any{
+				"Int":  "1",
+				"Ints": []string{"1", "2", "3"},
+			},
+			opts: []mapx.DecoderOpt{
+				mapx.WithConverter[*mapx.Decoder](stringIntDecConverter),
+			},
+			expected: &struct {
+				Int  int
+				Ints []int
+			}{
+				Int:  1,
 				Ints: []int{1, 2, 3},
 			},
 			err: nil,
