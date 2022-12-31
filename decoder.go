@@ -1,13 +1,17 @@
 package mapx
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
 
 var mapType = reflect.TypeOf((*map[string]any)(nil)).Elem()
 
-type DecoderOpt func(*Decoder)
+type DecoderOpt struct {
+	Converter DecodingConverter
+	Tag       string
+}
 
 type DecodeError struct {
 	Value any
@@ -18,37 +22,55 @@ func (e *DecodeError) Error() string {
 	return fmt.Sprintf("mapx: cannot decode value of type %T into %s", e.Value, e.Type)
 }
 
-type Decoder struct {
-	converter DecodingConverter
-	tag       string
+type Decoder[T any] struct {
+	opt    DecoderOpt
+	fields fields
 }
 
-func NewDecoder(opts ...DecoderOpt) *Decoder {
-	var dec Decoder
-	for _, opt := range opts {
-		opt(&dec)
+func NewDecoder(opts DecoderOpt) *Decoder[any] {
+	return &Decoder[any]{
+		opt: opts,
 	}
-	return &dec
 }
 
-func (dec *Decoder) Decode(m map[string]any, v any) error {
+func NewDecoderOf[T any](opts DecoderOpt) *Decoder[T] {
+	var fields fields
+	typ := reflect.TypeOf((*T)(nil)).Elem()
+	if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Struct {
+		fields = cachedFields(typeKey{
+			tag:  defaultTag(opts.Tag),
+			Type: typ.Elem(),
+		})
+	}
+
+	return &Decoder[T]{
+		opt:    opts,
+		fields: fields,
+	}
+}
+
+func (dec *Decoder[T]) Decode(m map[string]any, v T) error {
 	dst := reflect.ValueOf(v)
 
 	if dst.Kind() == reflect.Pointer {
 		dst = dst.Elem()
 	}
 
+	if dst.Kind() != reflect.Struct {
+		return errors.New("not a struct")
+	}
+
 	return dec.decode(m, dst)
 }
 
-func (e *Decoder) WithConverter(c DecodingConverter) { e.converter = c }
-func (e *Decoder) WithTag(s string)                  { e.tag = s }
-
-func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
-	fields := cachedFields(typeKey{
-		tag:  defaultTag(dec.tag),
-		Type: dst.Type(),
-	})
+func (dec *Decoder[T]) decode(m map[string]any, dst reflect.Value) error {
+	fields := dec.fields
+	if fields == nil {
+		fields = cachedFields(typeKey{
+			tag:  defaultTag(dec.opt.Tag),
+			Type: dst.Type(),
+		})
+	}
 
 	for _, f := range fields {
 		v, ok := m[f.name]
@@ -61,8 +83,8 @@ func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 
 		fv := dst.Field(f.index[0])
 
-		if dec.converter.m != nil {
-			if conv, ok := dec.converter.m[typ]; ok && fv.Type() == conv.dst {
+		if dec.opt.Converter.m != nil {
+			if conv, ok := dec.opt.Converter.m[typ]; ok && fv.Type() == conv.dst {
 				if err := conv.f(v, fv.Addr().Interface()); err != nil {
 					return err
 				}
@@ -107,7 +129,7 @@ func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 					val = val.Elem()
 				}
 
-				if conv, ok := dec.converter.m[val.Type()]; ok && f.typ.Elem() == conv.dst {
+				if conv, ok := dec.opt.Converter.m[val.Type()]; ok && f.typ.Elem() == conv.dst {
 					if err := conv.f(val.Interface(), slice.Index(i).Addr().Interface()); err != nil {
 						return err
 					}
@@ -145,8 +167,12 @@ func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 	return nil
 }
 
-func Decode(m map[string]any, v any, opts ...DecoderOpt) error {
-	return NewDecoder(opts...).Decode(m, v)
+func Decode(m map[string]any, v any) error {
+	return DecodeOpt(m, v, DecoderOpt{})
+}
+
+func DecodeOpt(m map[string]any, v any, opts DecoderOpt) error {
+	return NewDecoder(opts).Decode(m, v)
 }
 
 func fastCanConvert(typ, dst reflect.Type) bool {

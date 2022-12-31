@@ -51,14 +51,14 @@ func RegisterDecoder[T, V any](c *DecodingConverter, f func(T, *V) error) {
 }
 
 func WithConverter[T interface {
-	*Encoder | *Decoder
+	*Encoder
 	WithConverter(C)
 }, C any](c C) func(T) {
 	return func(v T) { v.WithConverter(c) }
 }
 
 func WithTag[T interface {
-	*Encoder | *Decoder
+	*Encoder
 	WithTag(string)
 }](s string) func(T) {
 	return func(v T) { v.WithTag(s) }

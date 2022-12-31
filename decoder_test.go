@@ -52,7 +52,7 @@ func TestDecode(t *testing.T) {
 	fixtures := []struct {
 		desc     string
 		m        map[string]any
-		opts     []mapx.DecoderOpt
+		opts     mapx.DecoderOpt
 		expected any
 		err      error
 	}{
@@ -97,8 +97,8 @@ func TestDecode(t *testing.T) {
 			expected: &C{
 				A: 1,
 			},
-			opts: []mapx.DecoderOpt{
-				mapx.WithTag[*mapx.Decoder]("custom"),
+			opts: mapx.DecoderOpt{
+				Tag: "custom",
 			},
 			err: nil,
 		},
@@ -170,8 +170,8 @@ func TestDecode(t *testing.T) {
 				"Int":  "1",
 				"Ints": []string{"1", "2", "3"},
 			},
-			opts: []mapx.DecoderOpt{
-				mapx.WithConverter[*mapx.Decoder](stringIntDecConverter),
+			opts: mapx.DecoderOpt{
+				Converter: stringIntDecConverter,
 			},
 			expected: &struct {
 				Int  int
@@ -188,7 +188,7 @@ func TestDecode(t *testing.T) {
 		t.Run(f.desc, func(t *testing.T) {
 			dst := reflect.New(reflect.TypeOf(f.expected).Elem())
 
-			if err := mapx.Decode(f.m, dst.Interface(), f.opts...); err != nil {
+			if err := mapx.DecodeOpt(f.m, dst.Interface(), f.opts); err != nil {
 				t.Error(err)
 			}
 
