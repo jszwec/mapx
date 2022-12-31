@@ -61,16 +61,27 @@ func (dec *Decoder) decode(m map[string]any, dst reflect.Value) error {
 
 		fv := dst.Field(f.index[0])
 
-		if conv, ok := dec.converter.m[typ]; ok && fv.Type() == conv.dst {
-			if err := conv.f(v, fv.Addr().Interface()); err != nil {
-				return err
+		if dec.converter.m != nil {
+			if conv, ok := dec.converter.m[typ]; ok && fv.Type() == conv.dst {
+				if err := conv.f(v, fv.Addr().Interface()); err != nil {
+					return err
+				}
+				continue
 			}
-			continue
 		}
 
 		switch {
 		case typ == f.typ:
-			fv.Set(val)
+			switch typ.Kind() {
+			case reflect.String:
+				fv.SetString(val.String())
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				fv.SetInt(val.Int())
+			case reflect.Float64, reflect.Float32:
+				fv.SetFloat(val.Float())
+			default:
+				fv.Set(val)
+			}
 		case val.CanConvert(f.typ):
 			fv.Set(val.Convert(f.typ))
 		case f.typ.Kind() == reflect.Slice && val.Type().Kind() == reflect.Slice:
