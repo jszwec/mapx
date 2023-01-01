@@ -188,7 +188,8 @@ func TestDecode(t *testing.T) {
 		t.Run(f.desc, func(t *testing.T) {
 			dst := reflect.New(reflect.TypeOf(f.expected).Elem())
 
-			if err := mapx.DecodeOpt(f.m, dst.Interface(), f.opts); err != nil {
+			dec := mapx.NewDecoder[any](f.opts)
+			if err := dec.Decode(f.m, dst.Interface()); err != nil {
 				t.Error(err)
 			}
 
