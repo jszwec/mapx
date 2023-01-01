@@ -135,7 +135,7 @@ func (dec *Decoder[T]) decode(m map[string]any, dst reflect.Value, fields fields
 				case val.CanConvert(f.typ.Elem()):
 					slice.Index(i).Set(val.Convert(f.typ.Elem()))
 				case val.Type().ConvertibleTo(mapType):
-					if err := dec.decode(val.Interface().(map[string]any), slice.Index(i), nil); err != nil {
+					if err := dec.decode(val.Interface().(map[string]any), slice.Index(i), f.fields); err != nil {
 						return err
 					}
 				default:
@@ -148,7 +148,7 @@ func (dec *Decoder[T]) decode(m map[string]any, dst reflect.Value, fields fields
 			}
 			fv.Set(slice)
 		case f.typ.Kind() == reflect.Struct && typ.ConvertibleTo(mapType):
-			if err := dec.decode(val.Interface().(map[string]any), fv, nil); err != nil {
+			if err := dec.decode(val.Interface().(map[string]any), fv, f.fields); err != nil {
 				return err
 			}
 		default:

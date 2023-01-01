@@ -46,8 +46,9 @@ var stringIntDecConverter = func() mapx.DecodingConverter {
 	return c
 }()
 
+var tm = time.Date(2022, 8, 4, 12, 0, 0, 0, time.UTC)
+
 func TestDecode(t *testing.T) {
-	tm := time.Date(2022, 8, 4, 12, 0, 0, 0, time.UTC)
 
 	fixtures := []struct {
 		desc     string
@@ -197,5 +198,54 @@ func TestDecode(t *testing.T) {
 				t.Error(d)
 			}
 		})
+	}
+}
+
+func TestDecodeTypedD(t *testing.T) {
+	in := map[string]any{
+		"CS": []any{
+			map[string]any{
+				"A":             1,
+				"B":             "hello",
+				"V":             false,
+				"TextMarshaler": tm,
+			},
+		},
+		"C": map[string]any{
+			"A":             1,
+			"B":             "hello",
+			"V":             false,
+			"TextMarshaler": tm,
+		},
+		"Ints": []int{1, 2, 3},
+		"Any":  10,
+		"Anys": []any{10, "lol"},
+	}
+
+	var d D
+	if err := mapx.NewDecoder[*D](mapx.DecoderOpt{}).Decode(in, &d); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(D{
+		CS: []C{
+			{
+				A:             1,
+				B:             "hello",
+				V:             false,
+				TextMarshaler: tm,
+			},
+		},
+		C: C{
+			A:             1,
+			B:             "hello",
+			V:             false,
+			TextMarshaler: tm,
+		},
+		Ints: []int{1, 2, 3},
+		Any:  10,
+		Anys: []any{10, "lol"},
+	}, d); diff != "" {
+		t.Error(diff)
 	}
 }

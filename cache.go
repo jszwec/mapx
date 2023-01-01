@@ -28,6 +28,7 @@ type field struct {
 	typ      reflect.Type
 	tag      tag
 	index    []int
+	fields   fields
 }
 
 type fields []field
@@ -48,6 +49,20 @@ func (fs fields) Less(i, j int) bool {
 type fieldMap map[string]fields
 
 func (m fieldMap) insert(f field) {
+	if f.typ.Kind() == reflect.Struct {
+		f.fields = cachedFields(typeKey{
+			tag:  f.tag.name,
+			Type: f.typ,
+		})
+	}
+
+	if f.typ.Kind() == reflect.Slice && f.typ.Elem().Kind() == reflect.Struct {
+		f.fields = cachedFields(typeKey{
+			tag:  f.tag.name,
+			Type: f.typ.Elem(),
+		})
+	}
+
 	fs, ok := m[f.name]
 	if !ok {
 		m[f.name] = append(fs, f)
