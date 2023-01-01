@@ -30,18 +30,9 @@ type Decoder[T any] struct {
 }
 
 func NewDecoder[T any](opts DecoderOpt) *Decoder[T] {
-	var fields fields
-	typ := reflect.TypeOf((*T)(nil)).Elem()
-	if typ.Kind() == reflect.Pointer && typ.Elem().Kind() == reflect.Struct {
-		fields = cachedFields(typeKey{
-			tag:  defaultTag(opts.Tag),
-			Type: typ.Elem(),
-		})
-	}
-
 	return &Decoder[T]{
 		opt:    opts,
-		fields: fields,
+		fields: structFields[T](opts.Tag),
 	}
 }
 

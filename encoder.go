@@ -18,18 +18,9 @@ type Encoder[T any] struct {
 }
 
 func NewEncoder[T any](opts EncoderOpt) *Encoder[T] {
-	var fields fields
-	typ := walkType(reflect.TypeOf((*T)(nil)).Elem())
-	if typ.Kind() == reflect.Struct {
-		fields = cachedFields(typeKey{
-			tag:  defaultTag(opts.Tag),
-			Type: typ,
-		})
-	}
-
 	return &Encoder[T]{
 		opts:   opts,
-		fields: fields,
+		fields: structFields[T](opts.Tag),
 	}
 }
 
@@ -106,4 +97,15 @@ func defaultTag(s string) string {
 		return "mapx"
 	}
 	return s
+}
+
+func structFields[T any](tag string) fields {
+	typ := walkType(reflect.TypeOf((*T)(nil)).Elem())
+	if typ.Kind() == reflect.Struct {
+		return cachedFields(typeKey{
+			tag:  defaultTag(tag),
+			Type: typ,
+		})
+	}
+	return nil
 }
