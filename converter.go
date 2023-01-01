@@ -49,17 +49,3 @@ func RegisterDecoder[T, V any](c *DecodingConverter, f func(T, *V) error) {
 		f:   func(v, dst any) error { return f(v.(T), dst.(*V)) },
 	}
 }
-
-func WithConverter[T interface {
-	*Encoder
-	WithConverter(C)
-}, C any](c C) func(T) {
-	return func(v T) { v.WithConverter(c) }
-}
-
-func WithTag[T interface {
-	*Encoder
-	WithTag(string)
-}](s string) func(T) {
-	return func(v T) { v.WithTag(s) }
-}

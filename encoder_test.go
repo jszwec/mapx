@@ -23,7 +23,7 @@ func TestStruct(t *testing.T) {
 	fixtures := []struct {
 		desc string
 		in   any
-		opts []mapx.EncoderOpt
+		opts mapx.EncoderOpt
 		out  map[string]any
 	}{
 		{
@@ -69,7 +69,9 @@ func TestStruct(t *testing.T) {
 					Map:  map[string]int{"1": 1},
 				},
 			},
-			opts: []mapx.EncoderOpt{mapx.WithConverter[*mapx.Encoder](mapx.JSONConverter)},
+			opts: mapx.EncoderOpt{
+				Converter: mapx.JSONConverter,
+			},
 			out: map[string]any{
 				"A1": float64(100),
 				"B": map[string]any{
@@ -86,7 +88,9 @@ func TestStruct(t *testing.T) {
 				Ints: []int{1, 2},
 				Map:  map[string]int{"1": 1},
 			},
-			opts: []mapx.EncoderOpt{mapx.WithTag[*mapx.Encoder]("custom")},
+			opts: mapx.EncoderOpt{
+				Tag: "custom",
+			},
 			out: map[string]any{
 				"b1":   200,
 				"Ints": []int{1, 2},
@@ -96,7 +100,8 @@ func TestStruct(t *testing.T) {
 
 	for _, f := range fixtures {
 		t.Run(f.desc, func(t *testing.T) {
-			out, err := mapx.Encode(f.in, f.opts...)
+			enc := mapx.NewEncoder[any](f.opts)
+			out, err := enc.Encode(f.in)
 			if err != nil {
 				t.Fatal("expected err=nil; got ", err)
 			}

@@ -5,29 +5,39 @@ import (
 	"reflect"
 )
 
-type EncoderOpt func(*Encoder)
+var defaultEncoder = NewEncoder[any](EncoderOpt{})
 
-type Encoder struct {
-	converter EncodingConverter
-	tag       string
+type EncoderOpt struct {
+	Converter EncodingConverter
+	Tag       string
 }
 
-func NewEncoder(opts ...EncoderOpt) *Encoder {
-	var enc Encoder
-	for _, opt := range opts {
-		opt(&enc)
+type Encoder[T any] struct {
+	opts   EncoderOpt
+	fields fields
+}
+
+func NewEncoder[T any](opts EncoderOpt) *Encoder[T] {
+	var fields fields
+	typ := walkType(reflect.TypeOf((*T)(nil)).Elem())
+	if typ.Kind() == reflect.Struct {
+		fields = cachedFields(typeKey{
+			tag:  defaultTag(opts.Tag),
+			Type: typ,
+		})
 	}
-	return &enc
+
+	return &Encoder[T]{
+		opts:   opts,
+		fields: fields,
+	}
 }
 
-func (e *Encoder) Encode(val any) (map[string]any, error) {
-	return e.encode(reflect.ValueOf(val))
+func (e *Encoder[T]) Encode(val T) (map[string]any, error) {
+	return e.encode(reflect.ValueOf(val), e.fields)
 }
 
-func (e *Encoder) WithConverter(c EncodingConverter) { e.converter = c }
-func (e *Encoder) WithTag(s string)                  { e.tag = s }
-
-func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
+func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, err error) {
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
@@ -36,15 +46,17 @@ func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 		return nil, errors.New("not a struct")
 	}
 
-	fs := cachedFields(typeKey{
-		tag:  defaultTag(e.tag),
-		Type: v.Type(),
-	})
+	if fields == nil {
+		fields = cachedFields(typeKey{
+			tag:  defaultTag(e.opts.Tag),
+			Type: v.Type(),
+		})
+	}
 
-	m := make(map[string]any, len(fs))
-	for _, f := range fs {
+	m := make(map[string]any, len(fields))
+	for _, f := range fields {
 		if f.typ.Kind() == reflect.Struct {
-			sub, err := e.encode(v.Field(f.index[0]))
+			sub, err := e.encode(v.Field(f.index[0]), f.fields)
 			if err != nil {
 				return nil, err
 			}
@@ -52,8 +64,8 @@ func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 			continue
 		}
 
-		if e.converter.m != nil {
-			if fn, ok := e.converter.m[f.typ]; ok {
+		if e.opts.Converter.m != nil {
+			if fn, ok := e.opts.Converter.m[f.typ]; ok {
 				m[f.name], err = fn(v.Field(f.index[0]).Interface())
 				if err != nil {
 					return nil, err
@@ -64,8 +76,8 @@ func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 
 		fv := v.Field(f.index[0]).Interface()
 
-		if e.converter.anyConv != nil {
-			v, err := e.converter.anyConv(fv)
+		if e.opts.Converter.anyConv != nil {
+			v, err := e.opts.Converter.anyConv(fv)
 			if err != nil {
 				return nil, err
 			}
@@ -85,8 +97,8 @@ func (e *Encoder) encode(v reflect.Value) (_ map[string]any, err error) {
 	return m, nil
 }
 
-func Encode(val any, opts ...EncoderOpt) (map[string]any, error) {
-	return NewEncoder(opts...).encode(reflect.ValueOf(val))
+func Encode[T any](val T) (map[string]any, error) {
+	return defaultEncoder.Encode(val)
 }
 
 func defaultTag(s string) string {

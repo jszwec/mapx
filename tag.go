@@ -47,7 +47,7 @@ func parseTag(tagname string, field reflect.StructField) (t tag) {
 }
 
 func walkType(typ reflect.Type) reflect.Type {
-	for typ.Kind() == reflect.Ptr {
+	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
 	return typ
