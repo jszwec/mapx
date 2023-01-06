@@ -8,6 +8,7 @@ import (
 type tag struct {
 	name      string
 	prefix    string
+	tagname   string
 	empty     bool
 	omitEmpty bool
 	ignore    bool
@@ -15,6 +16,7 @@ type tag struct {
 }
 
 func parseTag(tagname string, field reflect.StructField) (t tag) {
+	t.tagname = tagname
 	tags := strings.Split(field.Tag.Get(tagname), ",")
 	if len(tags) == 1 && tags[0] == "" {
 		t.name = field.Name

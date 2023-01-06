@@ -91,21 +91,3 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 func Encode[T any](val T) (map[string]any, error) {
 	return defaultEncoder.Encode(val)
 }
-
-func defaultTag(s string) string {
-	if s == "" {
-		return "mapx"
-	}
-	return s
-}
-
-func structFields[T any](tag string) fields {
-	typ := walkType(reflect.TypeOf((*T)(nil)).Elem())
-	if typ.Kind() == reflect.Struct {
-		return cachedFields(typeKey{
-			tag:  defaultTag(tag),
-			Type: typ,
-		})
-	}
-	return nil
-}

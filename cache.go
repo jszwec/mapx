@@ -51,14 +51,14 @@ type fieldMap map[string]fields
 func (m fieldMap) insert(f field) {
 	if f.typ.Kind() == reflect.Struct {
 		f.fields = cachedFields(typeKey{
-			tag:  f.tag.name,
+			tag:  f.tag.tagname,
 			Type: f.typ,
 		})
 	}
 
 	if f.typ.Kind() == reflect.Slice && f.typ.Elem().Kind() == reflect.Struct {
 		f.fields = cachedFields(typeKey{
-			tag:  f.tag.name,
+			tag:  f.tag.tagname,
 			Type: f.typ.Elem(),
 		})
 	}
