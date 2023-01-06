@@ -11,8 +11,8 @@ var defaultDecoder = NewDecoder[any](DecoderOpt{})
 var mapType = reflect.TypeOf((*map[string]any)(nil)).Elem()
 
 type DecoderOpt struct {
-	Converter DecodingConverter
-	Tag       string
+	DecoderFuncs DecoderFuncs
+	Tag          string
 }
 
 type DecodeError struct {
@@ -93,22 +93,22 @@ loop:
 		fv := dst.Field(f.index[0])
 
 		switch {
-		case dec.opt.Converter.m != nil:
-			if conv, ok := dec.opt.Converter.m[typ]; ok && reflect.PointerTo(fv.Type()) == conv.dst {
+		case dec.opt.DecoderFuncs.m != nil:
+			if conv, ok := dec.opt.DecoderFuncs.m[typ]; ok && reflect.PointerTo(fv.Type()) == conv.dst {
 				if err := conv.f(v, fv.Addr().Interface()); err != nil {
 					return err
 				}
 				continue
 			}
-		case dec.opt.Converter.ifaceFuncs != nil:
-			for _, fn := range dec.opt.Converter.ifaceFuncs[typ] {
-				if f.typ.AssignableTo(fn.typ) {
+		case dec.opt.DecoderFuncs.ifaceFuncs != nil:
+			for _, fn := range dec.opt.DecoderFuncs.ifaceFuncs[typ] {
+				if f.typ.AssignableTo(fn.dst) {
 					if err := fn.f(v, fv.Interface()); err != nil {
 						return err
 					}
 					continue loop
 				}
-				if reflect.PtrTo(f.typ).AssignableTo(fn.typ) {
+				if reflect.PtrTo(f.typ).AssignableTo(fn.dst) {
 					if err := fn.f(v, fv.Addr().Interface()); err != nil {
 						return err
 					}
@@ -178,23 +178,23 @@ loop:
 				}
 
 				switch {
-				case dec.opt.Converter.m != nil:
-					if conv, ok := dec.opt.Converter.m[val.Type()]; ok && reflect.PointerTo(f.typ.Elem()) == conv.dst {
+				case dec.opt.DecoderFuncs.m != nil:
+					if conv, ok := dec.opt.DecoderFuncs.m[val.Type()]; ok && reflect.PointerTo(f.typ.Elem()) == conv.dst {
 						if err := conv.f(val.Interface(), dst.Addr().Interface()); err != nil {
 							return err
 						}
 						continue
 					}
-				case dec.opt.Converter.ifaceFuncs != nil:
-					for _, fn := range dec.opt.Converter.ifaceFuncs[val.Type()] {
-						if f.typ.Elem().AssignableTo(fn.typ) {
+				case dec.opt.DecoderFuncs.ifaceFuncs != nil:
+					for _, fn := range dec.opt.DecoderFuncs.ifaceFuncs[val.Type()] {
+						if f.typ.Elem().AssignableTo(fn.dst) {
 							if err := fn.f(val.Interface(), dst.Interface()); err != nil {
 								return err
 							}
 							continue sliceLoop
 						}
 
-						if reflect.PtrTo(f.typ.Elem()).AssignableTo(fn.typ) {
+						if reflect.PtrTo(f.typ.Elem()).AssignableTo(fn.dst) {
 							if err := fn.f(val.Interface(), dst.Addr().Interface()); err != nil {
 								return err
 							}
@@ -237,6 +237,76 @@ loop:
 
 func Decode[T any](m map[string]any, v *T) error {
 	return defaultDecoder.Decode(m, v)
+}
+
+type DecoderFuncs struct {
+	m          map[reflect.Type]decoderFunc
+	ifaceFuncs map[reflect.Type][]decoderFunc
+}
+
+func (df DecoderFuncs) clone() DecoderFuncs {
+	var m map[reflect.Type]decoderFunc
+	if df.m != nil {
+		m = make(map[reflect.Type]decoderFunc, len(df.m))
+		for k, v := range df.m {
+			m[k] = v
+		}
+	}
+
+	var ifaceFuncs map[reflect.Type][]decoderFunc
+	if df.ifaceFuncs != nil {
+		ifaceFuncs = make(map[reflect.Type][]decoderFunc, len(df.ifaceFuncs))
+		for k, v := range df.ifaceFuncs {
+			cp := make([]decoderFunc, len(v))
+			copy(cp, v)
+			ifaceFuncs[k] = cp
+		}
+	}
+
+	return DecoderFuncs{
+		m:          m,
+		ifaceFuncs: ifaceFuncs,
+	}
+}
+
+func RegisterDecoder[T, V any](df DecoderFuncs, f func(T, V) error) DecoderFuncs {
+	out := df.clone()
+
+	ftyp := reflect.TypeOf(f)
+
+	if ftyp.In(1).Kind() == reflect.Interface {
+		if out.ifaceFuncs == nil {
+			out.ifaceFuncs = make(map[reflect.Type][]decoderFunc)
+		}
+
+		if ftyp.In(1).NumMethod() == 0 {
+			panic("mapx: empty interface not allowed as destination type for RegisterDecoder")
+		}
+
+		out.ifaceFuncs[ftyp.In(0)] = append(out.ifaceFuncs[ftyp.In(0)],
+			decoderFunc{
+				dst: ftyp.In(1),
+				f:   func(v, dst any) error { return f(v.(T), dst.(V)) },
+			},
+		)
+		return out
+	}
+
+	if out.m == nil {
+		out.m = make(map[reflect.Type]decoderFunc)
+	}
+
+	out.m[ftyp.In(0)] = decoderFunc{
+		dst: ftyp.In(1),
+		f:   func(v, dst any) error { return f(v.(T), dst.(V)) },
+	}
+
+	return out
+}
+
+type decoderFunc struct {
+	dst reflect.Type
+	f   func(any, any) error
 }
 
 func fastCanConvert(typ, dst reflect.Type) bool {

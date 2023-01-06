@@ -55,9 +55,8 @@ func (n wrappedInt) UnmarshalText(text []byte) error {
 	return n.Int.UnmarshalText(text)
 }
 
-var stringIntDecConverter = func() mapx.DecodingConverter {
-	var c mapx.DecodingConverter
-	mapx.RegisterDecoder(&c, func(s string, dst *int) error {
+var stringIntDecConverter = func() mapx.DecoderFuncs {
+	return mapx.RegisterDecoder(mapx.DecoderFuncs{}, func(s string, dst *int) error {
 		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return err
@@ -65,15 +64,12 @@ var stringIntDecConverter = func() mapx.DecodingConverter {
 		*dst = int(n)
 		return nil
 	})
-	return c
 }()
 
-var textUnmarshalerDecConverter = func() mapx.DecodingConverter {
-	var c mapx.DecodingConverter
-	mapx.RegisterDecoder(&c, func(s string, dst encoding.TextUnmarshaler) error {
+var textUnmarshalerDecConverter = func() mapx.DecoderFuncs {
+	return mapx.RegisterDecoder(mapx.DecoderFuncs{}, func(s string, dst encoding.TextUnmarshaler) error {
 		return dst.UnmarshalText([]byte(s))
 	})
-	return c
 }()
 
 var tm = time.Date(2022, 8, 4, 12, 0, 0, 0, time.UTC)
@@ -251,7 +247,7 @@ func TestDecode(t *testing.T) {
 				"Ints": []string{"1", "2", "3"},
 			},
 			opts: mapx.DecoderOpt{
-				Converter: stringIntDecConverter,
+				DecoderFuncs: stringIntDecConverter,
 			},
 			expected: &struct {
 				Int  int
@@ -270,7 +266,7 @@ func TestDecode(t *testing.T) {
 				"PInts": []string{"1", "2", "3"},
 			},
 			opts: mapx.DecoderOpt{
-				Converter: textUnmarshalerDecConverter,
+				DecoderFuncs: textUnmarshalerDecConverter,
 			},
 			expected: &struct {
 				Int   Int
@@ -290,7 +286,7 @@ func TestDecode(t *testing.T) {
 				"Ints": []string{"1", "2", "3"},
 			},
 			opts: mapx.DecoderOpt{
-				Converter: textUnmarshalerDecConverter,
+				DecoderFuncs: textUnmarshalerDecConverter,
 			},
 			dst: &struct {
 				Int wrappedInt
