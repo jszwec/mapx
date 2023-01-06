@@ -1,6 +1,8 @@
 package mapx
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type (
 	SkipValue struct{}
@@ -29,7 +31,8 @@ func RegisterEncoder[T, V any](c *EncodingConverter, f func(T) (V, error)) {
 }
 
 type DecodingConverter struct {
-	m map[reflect.Type]decodingFunc
+	m          map[reflect.Type]decodingFunc
+	ifaceFuncs map[reflect.Type][]ifaceDecodingFunc
 }
 
 type decodingFunc struct {
@@ -37,15 +40,38 @@ type decodingFunc struct {
 	f   func(any, any) error
 }
 
-func RegisterDecoder[T, V any](c *DecodingConverter, f func(T, *V) error) {
+type ifaceDecodingFunc struct {
+	f   func(any, any) error
+	typ reflect.Type
+}
+
+func RegisterDecoder[T, V any](c *DecodingConverter, f func(T, V) error) {
 	ftyp := reflect.TypeOf(f)
+
+	if ftyp.In(1).Kind() == reflect.Interface {
+		if c.ifaceFuncs == nil {
+			c.ifaceFuncs = make(map[reflect.Type][]ifaceDecodingFunc)
+		}
+
+		if ftyp.In(1).NumMethod() == 0 {
+			panic("mapx: empty interface not allowed as destination type for RegisterDecoder")
+		}
+
+		c.ifaceFuncs[ftyp.In(0)] = append(c.ifaceFuncs[ftyp.In(0)],
+			ifaceDecodingFunc{
+				f:   func(v, dst any) error { return f(v.(T), dst.(V)) },
+				typ: ftyp.In(1),
+			},
+		)
+		return
+	}
 
 	if c.m == nil {
 		c.m = make(map[reflect.Type]decodingFunc)
 	}
 
 	c.m[ftyp.In(0)] = decodingFunc{
-		dst: reflect.TypeOf((*V)(nil)).Elem(),
-		f:   func(v, dst any) error { return f(v.(T), dst.(*V)) },
+		dst: ftyp.In(1),
+		f:   func(v, dst any) error { return f(v.(T), dst.(V)) },
 	}
 }
