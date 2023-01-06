@@ -8,8 +8,8 @@ import (
 var defaultEncoder = NewEncoder[any](EncoderOpt{})
 
 type EncoderOpt struct {
-	Converter EncodingConverter
-	Tag       string
+	EncoderFuncs EncoderFuncs
+	Tag          string
 }
 
 type Encoder[T any] struct {
@@ -55,8 +55,8 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 			continue
 		}
 
-		if e.opts.Converter.m != nil {
-			if fn, ok := e.opts.Converter.m[f.typ]; ok {
+		if e.opts.EncoderFuncs.m != nil {
+			if fn, ok := e.opts.EncoderFuncs.m[f.typ]; ok {
 				m[f.name], err = fn(v.Field(f.index[0]).Interface())
 				if err != nil {
 					return nil, err
@@ -67,8 +67,8 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 
 		fv := v.Field(f.index[0]).Interface()
 
-		if e.opts.Converter.anyConv != nil {
-			v, err := e.opts.Converter.anyConv(fv)
+		if e.opts.EncoderFuncs.anyConv != nil {
+			v, err := e.opts.EncoderFuncs.anyConv(fv)
 			if err != nil {
 				return nil, err
 			}
@@ -90,4 +90,63 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 
 func Encode[T any](val T) (map[string]any, error) {
 	return defaultEncoder.Encode(val)
+}
+
+type (
+	SkipValue struct{}
+	NoChange  struct{}
+)
+
+var anyConvFuncType = reflect.TypeOf((func(any) (any, error))(nil))
+
+type EncoderFuncs struct {
+	anyConv    func(any) (any, error)
+	m          map[reflect.Type]func(any) (any, error)
+	ifaceFuncs map[reflect.Type][]func(any) (any, error)
+}
+
+func (ef EncoderFuncs) clone() EncoderFuncs {
+	var (
+		m          map[reflect.Type]func(any) (any, error)
+		ifaceFuncs map[reflect.Type][]func(any) (any, error)
+	)
+
+	if ef.m != nil {
+		m = make(map[reflect.Type]func(any) (any, error), len(ef.m)+1)
+		for k, v := range ef.m {
+			m[k] = v
+		}
+	}
+
+	if ef.ifaceFuncs != nil {
+		ifaceFuncs = make(map[reflect.Type][]func(any) (any, error), len(ef.ifaceFuncs)+1)
+		for k, v := range ef.ifaceFuncs {
+			cp := make([]func(any) (any, error), len(v))
+			copy(cp, v)
+			ifaceFuncs[k] = v
+		}
+	}
+
+	return EncoderFuncs{
+		anyConv:    ef.anyConv,
+		m:          m,
+		ifaceFuncs: ifaceFuncs,
+	}
+}
+
+func RegisterEncoder[T, V any](ef EncoderFuncs, f func(T) (V, error)) EncoderFuncs {
+	out := ef.clone()
+
+	ftyp := reflect.TypeOf(f)
+	if ftyp == anyConvFuncType {
+		out.anyConv = reflect.ValueOf(f).Interface().(func(any) (any, error))
+		return out
+	}
+
+	if out.m == nil {
+		out.m = make(map[reflect.Type]func(any) (any, error))
+	}
+
+	out.m[ftyp.In(0)] = func(v any) (any, error) { return f(v.(T)) }
+	return out
 }

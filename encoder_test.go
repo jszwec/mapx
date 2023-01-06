@@ -70,7 +70,7 @@ func TestStruct(t *testing.T) {
 				},
 			},
 			opts: mapx.EncoderOpt{
-				Converter: mapx.JSONConverter,
+				EncoderFuncs: mapx.JSONEncoderFuncs,
 			},
 			out: map[string]any{
 				"A1": float64(100),

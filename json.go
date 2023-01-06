@@ -2,11 +2,7 @@ package mapx
 
 import "reflect"
 
-var JSONConverter EncodingConverter
-
-func init() {
-	RegisterEncoder(&JSONConverter, jsonAny)
-}
+var JSONEncoderFuncs = RegisterEncoder(EncoderFuncs{}, jsonAny)
 
 func jsonAny(val any) (any, error) {
 	v := reflect.ValueOf(val)
