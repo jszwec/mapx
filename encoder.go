@@ -48,7 +48,7 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 	m := make(map[string]any, len(fields))
 loop:
 	for _, f := range fields {
-		fv := fieldByIndex(v, f.index)
+		fv := fieldByIndex(v, f.index, false)
 		if !fv.IsValid() {
 			m[f.name] = nil
 			continue

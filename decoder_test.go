@@ -100,7 +100,6 @@ func TestDecode(t *testing.T) {
 				Ptr:           ptr(10),
 				TextMarshaler: tm,
 			},
-			err: nil,
 		},
 		{
 			desc: "to ptr",
@@ -110,7 +109,6 @@ func TestDecode(t *testing.T) {
 			expected: &C{
 				Ptr: ptr(10),
 			},
-			err: nil,
 		},
 		{
 			desc: "to ptr - nil",
@@ -128,7 +126,6 @@ func TestDecode(t *testing.T) {
 			expected: &C{
 				Ptr: ptr(10),
 			},
-			err: nil,
 		},
 		{
 			desc: "to ptr - conv",
@@ -138,7 +135,6 @@ func TestDecode(t *testing.T) {
 			expected: &C{
 				Ptr: ptr(10),
 			},
-			err: nil,
 		},
 		{
 			desc: "type aliases",
@@ -154,7 +150,6 @@ func TestDecode(t *testing.T) {
 				V:             Bool(false),
 				TextMarshaler: tm,
 			},
-			err: nil,
 		},
 		{
 			desc: "custom tag",
@@ -168,7 +163,6 @@ func TestDecode(t *testing.T) {
 			opts: mapx.DecoderOpt{
 				Tag: "custom",
 			},
-			err: nil,
 		},
 		{
 			desc: "with arrays",
@@ -210,7 +204,6 @@ func TestDecode(t *testing.T) {
 				Any:  10,
 				Anys: []any{10, "lol"},
 			},
-			err: nil,
 		},
 		{
 			desc: "with arrays - iface array to type",
@@ -224,7 +217,6 @@ func TestDecode(t *testing.T) {
 				PtrInts: &[]int{1, 2, 3},
 				PInts:   []*int{ptr(1), ptr(2), nil},
 			},
-			err: nil,
 		},
 		{
 			desc: "with slices - cast slice to type",
@@ -238,7 +230,6 @@ func TestDecode(t *testing.T) {
 				PtrInts: &[]int{1, 2, 3},
 				PInts:   []*int{ptr(1), ptr(2), ptr(3)},
 			},
-			err: nil,
 		},
 		{
 			desc: "with custom decoder",
@@ -256,7 +247,6 @@ func TestDecode(t *testing.T) {
 				Int:  1,
 				Ints: []int{1, 2, 3},
 			},
-			err: nil,
 		},
 		{
 			desc: "with custom decoder - interface - ptr receiver",
@@ -277,7 +267,77 @@ func TestDecode(t *testing.T) {
 				Ints:  []Int{1, 2, 3},
 				PInts: []*Int{ptr(Int(1)), ptr(Int(2)), ptr(Int(3))},
 			},
-			err: nil,
+		},
+		{
+			desc: "embedded",
+			m: map[string]any{
+				"A":    10,
+				"B1":   100,
+				"Ints": []int{1},
+				"Map":  map[string]int{"foo": 1},
+			},
+			expected: &Embedded{
+				A: 10,
+				B: &B{
+					B1:   100,
+					Ints: []int{1},
+					Map:  map[string]int{"foo": 1},
+				},
+			},
+		},
+		{
+			desc: "embedded field conflict",
+			m: map[string]any{
+				"A1": 100,
+				"B":  999,
+			},
+			expected: &struct {
+				A
+				B int
+			}{
+				A: A{
+					A1: 100,
+					B:  B{},
+				},
+				B: 999,
+			},
+		},
+		{
+			desc: "inline",
+			m: map[string]any{
+				"Int":  Int(5),
+				"B1":   100,
+				"Ints": []int{10},
+				"Map":  map[string]int{"foo": 1},
+			},
+			expected: &struct {
+				Int Int
+				B   B `mapx:",inline"`
+			}{
+				Int: 5,
+				B: B{
+					B1:   100,
+					Ints: []int{10},
+					Map:  map[string]int{"foo": 1},
+				},
+			},
+		},
+		{
+			desc: "inline field conflict",
+			m: map[string]any{
+				"A1": 100,
+				"B":  999,
+			},
+			expected: &struct {
+				A A `mapx:",inline"`
+				B int
+			}{
+				A: A{
+					A1: 100,
+					B:  B{},
+				},
+				B: 999,
+			},
 		},
 		{
 			desc: "with custom decoder - interface - value receiver",
@@ -298,7 +358,6 @@ func TestDecode(t *testing.T) {
 			}{
 				Int: wrappedInt{ptr(Int(1))},
 			},
-			err: nil,
 		},
 		{
 			desc: "error - string to int",

@@ -90,7 +90,7 @@ loop:
 
 		typ := val.Type()
 
-		fv := dst.Field(f.index[0])
+		fv := fieldByIndex(dst, f.index, true)
 
 		if dec.opt.DecoderFuncs.m != nil {
 			if conv, ok := dec.opt.DecoderFuncs.m[typ]; ok && reflect.PointerTo(fv.Type()) == conv.dst {
