@@ -13,6 +13,7 @@ type tag struct {
 	omitEmpty bool
 	ignore    bool
 	inline    bool
+	raw       bool
 }
 
 func parseTag(tagname string, field reflect.StructField) (t tag) {
@@ -43,6 +44,8 @@ func parseTag(tagname string, field reflect.StructField) (t tag) {
 				t.inline = true
 				t.prefix = tags[0]
 			}
+		case "raw":
+			t.raw = true
 		}
 	}
 	return

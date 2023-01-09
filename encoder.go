@@ -105,7 +105,7 @@ loop:
 			}
 		}
 
-		if f.typ.Kind() == reflect.Struct && !isKnownStruct(f.typ) {
+		if f.typ.Kind() == reflect.Struct && (!f.tag.raw && !isKnownStruct(f.typ)) {
 			sub, err := e.encode(fv, f.fields)
 			if err != nil {
 				return nil, err

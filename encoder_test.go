@@ -250,6 +250,26 @@ func TestStruct(t *testing.T) {
 				"B":  999,
 			},
 		},
+		{
+			desc: "raw tag",
+			in: &struct {
+				A A `mapx:",raw"`
+				B int
+			}{
+				A: A{
+					A1: 100,
+					B:  B{B1: 99},
+				},
+				B: 999,
+			},
+			out: map[string]any{
+				"A": A{
+					A1: 100,
+					B:  B{B1: 99},
+				},
+				"B": 999,
+			},
+		},
 	}
 
 	for _, f := range fixtures {
