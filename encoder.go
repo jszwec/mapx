@@ -3,7 +3,6 @@ package mapx
 import (
 	"errors"
 	"reflect"
-	"time"
 )
 
 var defaultEncoder = NewEncoder[any](EncoderOpt{})
@@ -105,7 +104,7 @@ loop:
 			}
 		}
 
-		if f.typ.Kind() == reflect.Struct && (!f.tag.raw && !isKnownStruct(f.typ)) {
+		if f.typ.Kind() == reflect.Struct && !f.tag.raw {
 			sub, err := e.encode(fv, f.fields)
 			if err != nil {
 				return nil, err
@@ -191,11 +190,4 @@ func RegisterEncoder[T, V any](ef EncoderFuncs, f func(T) (V, error)) EncoderFun
 
 	out.m[ftyp.In(0)] = func(v any) (any, error) { return f(v.(T)) }
 	return out
-}
-
-var timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
-
-func isKnownStruct(typ reflect.Type) bool {
-	// we will possibly list more here.
-	return timeType == typ
 }

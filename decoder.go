@@ -125,7 +125,7 @@ loop:
 		}
 
 		switch {
-		case typ == fv.Type() || fastCanConvert(fv.Type(), typ):
+		case typ == fv.Type() || canSet(fv.Type(), typ):
 			switch typ.Kind() {
 			case reflect.String:
 				fv.SetString(val.String())
@@ -152,74 +152,9 @@ loop:
 				fv.Set(val.Convert(fv.Type()))
 			}
 		case fv.Type().Kind() == reflect.Slice && val.Type().Kind() == reflect.Slice:
-			l := val.Len()
-			slice := reflect.MakeSlice(fv.Type(), l, l)
-
-			shouldInit := fv.Type().Elem().Kind() == reflect.Pointer
-
-		sliceLoop:
-			for i := 0; i < l; i++ {
-				val := val.Index(i)
-				if val.Type().Kind() == reflect.Interface {
-					val = val.Elem()
-				}
-
-				if !val.IsValid() {
-					if typ, k := fv.Type().Elem(), fv.Type().Elem().Kind(); k != reflect.Interface && k != reflect.Pointer {
-						return &DecodeError{
-							Value: nil,
-							Type:  typ,
-						}
-					}
-					continue
-				}
-
-				dst := slice.Index(i)
-				if shouldInit {
-					dst.Set(reflect.New(fv.Type().Elem().Elem()))
-				}
-
-				switch {
-				case dec.opt.DecoderFuncs.m != nil:
-					if conv, ok := dec.opt.DecoderFuncs.m[val.Type()]; ok && reflect.PointerTo(f.typ.Elem()) == conv.dst {
-						if err := conv.f(val.Interface(), dst.Addr().Interface()); err != nil {
-							return err
-						}
-						continue
-					}
-				case dec.opt.DecoderFuncs.ifaceFuncs != nil:
-					for _, fn := range dec.opt.DecoderFuncs.ifaceFuncs[val.Type()] {
-						if f.typ.Elem().AssignableTo(fn.dst) {
-							if err := fn.f(val.Interface(), dst.Interface()); err != nil {
-								return err
-							}
-							continue sliceLoop
-						}
-
-						if reflect.PtrTo(f.typ.Elem()).AssignableTo(fn.dst) {
-							if err := fn.f(val.Interface(), dst.Addr().Interface()); err != nil {
-								return err
-							}
-							continue sliceLoop
-						}
-					}
-				}
-
-				switch {
-				case val.CanConvert(fv.Type().Elem()):
-					dst.Set(val.Convert(fv.Type().Elem()))
-				case shouldInit && val.CanConvert(fv.Type().Elem().Elem()):
-					dst.Elem().Set(val.Convert(dst.Type().Elem()))
-				case val.Type().ConvertibleTo(mapType):
-					if err := dec.decode(val.Interface().(map[string]any), dst, f.fields); err != nil {
-						return err
-					}
-				default:
-					return &DecodeError{
-						Value: val.Interface(),
-						Type:  f.baseType.Elem(),
-					}
-				}
+			slice, err := dec.decodeSlice(f, val)
+			if err != nil {
+				return err
 			}
 			fv.Set(slice)
 		case fv.Type().Kind() == reflect.Struct && typ.ConvertibleTo(mapType):
@@ -235,6 +170,81 @@ loop:
 	}
 
 	return nil
+}
+
+func (dec *Decoder[T]) decodeSlice(f field, val reflect.Value) (reflect.Value, error) {
+	var (
+		l          = val.Len()
+		slice      = reflect.MakeSlice(f.typ, l, l)
+		elemType   = f.typ.Elem()
+		shouldInit = elemType.Kind() == reflect.Pointer
+	)
+
+sliceLoop:
+	for i := 0; i < l; i++ {
+		val := val.Index(i)
+		if val.Type().Kind() == reflect.Interface {
+			val = val.Elem()
+		}
+
+		if !val.IsValid() {
+			if typ, k := elemType, elemType.Kind(); k != reflect.Interface && k != reflect.Pointer {
+				return reflect.Value{}, &DecodeError{
+					Value: nil,
+					Type:  typ,
+				}
+			}
+			continue
+		}
+
+		dst := slice.Index(i)
+		if shouldInit {
+			dst.Set(reflect.New(elemType.Elem()))
+		}
+
+		switch {
+		case dec.opt.DecoderFuncs.m != nil:
+			if conv, ok := dec.opt.DecoderFuncs.m[val.Type()]; ok && reflect.PointerTo(f.typ.Elem()) == conv.dst {
+				if err := conv.f(val.Interface(), dst.Addr().Interface()); err != nil {
+					return reflect.Value{}, err
+				}
+				continue
+			}
+		case dec.opt.DecoderFuncs.ifaceFuncs != nil:
+			for _, fn := range dec.opt.DecoderFuncs.ifaceFuncs[val.Type()] {
+				if f.typ.Elem().AssignableTo(fn.dst) {
+					if err := fn.f(val.Interface(), dst.Interface()); err != nil {
+						return reflect.Value{}, err
+					}
+					continue sliceLoop
+				}
+
+				if reflect.PtrTo(f.typ.Elem()).AssignableTo(fn.dst) {
+					if err := fn.f(val.Interface(), dst.Addr().Interface()); err != nil {
+						return reflect.Value{}, err
+					}
+					continue sliceLoop
+				}
+			}
+		}
+
+		switch {
+		case val.CanConvert(f.typ.Elem()):
+			dst.Set(val.Convert(f.typ.Elem()))
+		case shouldInit && val.CanConvert(f.typ.Elem().Elem()):
+			dst.Elem().Set(val.Convert(dst.Type().Elem()))
+		case val.Type().ConvertibleTo(mapType):
+			if err := dec.decode(val.Interface().(map[string]any), dst, f.fields); err != nil {
+				return reflect.Value{}, err
+			}
+		default:
+			return reflect.Value{}, &DecodeError{
+				Value: val.Interface(),
+				Type:  f.baseType.Elem(),
+			}
+		}
+	}
+	return slice, nil
 }
 
 func Decode[T any](m map[string]any, v *T) error {
@@ -311,7 +321,7 @@ type decoderFunc struct {
 	f   func(any, any) error
 }
 
-func fastCanConvert(typ, dst reflect.Type) bool {
+func canSet(typ, dst reflect.Type) bool {
 	switch typ.Kind() {
 	case reflect.String:
 		return dst.Kind() == reflect.String

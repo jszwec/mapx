@@ -3,6 +3,7 @@ package mapx
 import (
 	"reflect"
 	"strings"
+	"time"
 )
 
 type tag struct {
@@ -18,6 +19,8 @@ type tag struct {
 
 func parseTag(tagname string, field reflect.StructField) (t tag) {
 	t.tagname = tagname
+	t.raw = isKnownStruct(walkType(field.Type))
+
 	tags := strings.Split(field.Tag.Get(tagname), ",")
 	if len(tags) == 1 && tags[0] == "" {
 		t.name = field.Name
@@ -56,4 +59,11 @@ func walkType(typ reflect.Type) reflect.Type {
 		typ = typ.Elem()
 	}
 	return typ
+}
+
+var timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
+
+func isKnownStruct(typ reflect.Type) bool {
+	// we will possibly list more here.
+	return timeType == typ
 }
