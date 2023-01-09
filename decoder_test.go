@@ -248,6 +248,8 @@ func TestDecode(t *testing.T) {
 			desc: "with custom decoder - interface - ptr receiver",
 			m: map[string]any{
 				"Int":   "1",
+				"PInt":  "100",
+				"PInt2": 200,
 				"Ints":  []string{"1", "2", "3"},
 				"PInts": []string{"1", "2", "3"},
 			},
@@ -256,10 +258,14 @@ func TestDecode(t *testing.T) {
 			},
 			expected: &struct {
 				Int   Int
+				PInt  *Int
+				PInt2 *Int
 				Ints  []Int
 				PInts []*Int
 			}{
 				Int:   1,
+				PInt:  ptr(Int(100)),
+				PInt2: ptr(Int(200)),
 				Ints:  []Int{1, 2, 3},
 				PInts: []*Int{ptr(Int(1)), ptr(Int(2)), ptr(Int(3))},
 			},

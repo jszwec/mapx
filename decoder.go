@@ -92,6 +92,11 @@ loop:
 
 		fv := fieldByIndex(dst, f.index, true)
 
+		if f.baseType.Kind() == reflect.Pointer && typ.Kind() != reflect.Pointer && fv.IsNil() {
+			fv.Set(reflect.New(fv.Type().Elem()))
+			fv = fv.Elem()
+		}
+
 		if dec.opt.DecoderFuncs.m != nil {
 			if conv, ok := dec.opt.DecoderFuncs.m[typ]; ok && reflect.PointerTo(fv.Type()) == conv.dst {
 				if err := conv.f(v, fv.Addr().Interface()); err != nil {
@@ -109,6 +114,7 @@ loop:
 					}
 					continue loop
 				}
+
 				if reflect.PtrTo(f.typ).AssignableTo(fn.dst) {
 					if err := fn.f(v, fv.Addr().Interface()); err != nil {
 						return err
@@ -116,11 +122,6 @@ loop:
 					continue loop
 				}
 			}
-		}
-
-		if f.baseType.Kind() == reflect.Pointer && typ.Kind() != reflect.Pointer && fv.IsNil() {
-			fv.Set(reflect.New(fv.Type().Elem()))
-			fv = fv.Elem()
 		}
 
 		switch {
