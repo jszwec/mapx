@@ -42,8 +42,8 @@ func ExampleDecode() {
 }
 
 func ExampleDecoder_Decode() {
-	// dfs should be a global variable.
-	dfs := mapx.RegisterDecoder(mapx.DecoderFuncs{}, func(s string, dst *int) error {
+	// decoderFuncs should be a global variable.
+	decoderFuncs := mapx.RegisterDecoder(mapx.DecoderFuncs{}, func(s string, dst *int) error {
 		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			return err
@@ -54,7 +54,7 @@ func ExampleDecoder_Decode() {
 
 	// decoders should be global variables.
 	dec := mapx.NewDecoder[*User](mapx.DecoderOpt{
-		DecoderFuncs: dfs,
+		DecoderFuncs: decoderFuncs,
 		Tag:          "mapx",
 	})
 

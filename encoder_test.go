@@ -1,6 +1,8 @@
 package mapx_test
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/jszwec/mapx"
@@ -17,6 +19,19 @@ type B struct {
 	B1   int `custom:"b1"`
 	Ints []int
 	Map  map[string]int `custom:"-"`
+}
+
+var stringerEncoder = mapx.RegisterEncoder(mapx.EncoderFuncs{}, func(s fmt.Stringer) (string, error) {
+	return s.String(), nil
+})
+
+func (n Int) String() string {
+	return strconv.Itoa(int(n))
+}
+
+// ptr receiver testing.
+func (b *Bool) String() string {
+	return strconv.FormatBool(bool(*b))
 }
 
 func TestStruct(t *testing.T) {
@@ -94,6 +109,33 @@ func TestStruct(t *testing.T) {
 			out: map[string]any{
 				"b1":   200,
 				"Ints": []int{1, 2},
+			},
+		},
+		{
+			desc: "with interface encoder",
+			in: &struct {
+				Int     Int
+				PtrInt  *Int
+				NilInt  *Int
+				Bool    Bool
+				PtrBool *Bool
+				NilBool *Bool
+			}{
+				Int:     5,
+				PtrInt:  ptr(Int(10)),
+				Bool:    true,
+				PtrBool: ptr(Bool(true)),
+			},
+			opts: mapx.EncoderOpt{
+				EncoderFuncs: stringerEncoder,
+			},
+			out: map[string]any{
+				"Int":     "5",
+				"PtrInt":  "10",
+				"NilInt":  nil,
+				"Bool":    "true",
+				"PtrBool": "true",
+				"NilBool": nil,
 			},
 		},
 	}

@@ -45,9 +45,12 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 	}
 
 	m := make(map[string]any, len(fields))
+loop:
 	for _, f := range fields {
+		fv := v.Field(f.index[0])
+
 		if f.typ.Kind() == reflect.Struct {
-			sub, err := e.encode(v.Field(f.index[0]), f.fields)
+			sub, err := e.encode(fv, f.fields)
 			if err != nil {
 				return nil, err
 			}
@@ -55,20 +58,41 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 			continue
 		}
 
-		if e.opts.EncoderFuncs.m != nil {
-			if fn, ok := e.opts.EncoderFuncs.m[f.typ]; ok {
-				m[f.name], err = fn(v.Field(f.index[0]).Interface())
+		dst := fv.Interface()
+
+		switch {
+		case e.opts.EncoderFuncs.m != nil:
+			if fn, ok := e.opts.EncoderFuncs.m[f.baseType]; ok {
+				m[f.name], err = fn(fv.Interface())
 				if err != nil {
 					return nil, err
 				}
 				continue
 			}
-		}
+		case e.opts.EncoderFuncs.ifaceFuncs != nil:
+			for _, fn := range e.opts.EncoderFuncs.ifaceFuncs {
+				if f.baseType.Implements(fn.argType) {
+					if f.baseType.Kind() == reflect.Pointer && fv.IsNil() {
+						m[f.name] = nil
+						continue loop
+					}
+					m[f.name], err = fn.f(fv.Interface())
+					if err != nil {
+						return nil, err
+					}
+					continue loop
+				}
 
-		fv := v.Field(f.index[0]).Interface()
-
-		if e.opts.EncoderFuncs.anyConv != nil {
-			v, err := e.opts.EncoderFuncs.anyConv(fv)
+				if reflect.PointerTo(f.baseType).Implements(fn.argType) && fv.CanAddr() {
+					m[f.name], err = fn.f(fv.Addr().Interface())
+					if err != nil {
+						return nil, err
+					}
+					continue loop
+				}
+			}
+		case e.opts.EncoderFuncs.anyConv != nil:
+			v, err := e.opts.EncoderFuncs.anyConv(dst)
 			if err != nil {
 				return nil, err
 			}
@@ -78,11 +102,11 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 				continue
 			case NoChange{}:
 			default:
-				fv = v
+				dst = v
 			}
 		}
 
-		m[f.name] = fv
+		m[f.name] = dst
 	}
 
 	return m, nil
@@ -97,18 +121,21 @@ type (
 	NoChange  struct{}
 )
 
-var anyConvFuncType = reflect.TypeOf((func(any) (any, error))(nil))
-
 type EncoderFuncs struct {
 	anyConv    func(any) (any, error)
 	m          map[reflect.Type]func(any) (any, error)
-	ifaceFuncs map[reflect.Type][]func(any) (any, error)
+	ifaceFuncs []encodingFunc
+}
+
+type encodingFunc struct {
+	argType reflect.Type
+	f       func(any) (any, error)
 }
 
 func (ef EncoderFuncs) clone() EncoderFuncs {
 	var (
 		m          map[reflect.Type]func(any) (any, error)
-		ifaceFuncs map[reflect.Type][]func(any) (any, error)
+		ifaceFuncs []encodingFunc
 	)
 
 	if ef.m != nil {
@@ -119,12 +146,9 @@ func (ef EncoderFuncs) clone() EncoderFuncs {
 	}
 
 	if ef.ifaceFuncs != nil {
-		ifaceFuncs = make(map[reflect.Type][]func(any) (any, error), len(ef.ifaceFuncs)+1)
-		for k, v := range ef.ifaceFuncs {
-			cp := make([]func(any) (any, error), len(v))
-			copy(cp, v)
-			ifaceFuncs[k] = v
-		}
+		cp := make([]encodingFunc, len(ef.ifaceFuncs), len(ef.ifaceFuncs)+1)
+		copy(cp, ef.ifaceFuncs)
+		ifaceFuncs = cp
 	}
 
 	return EncoderFuncs{
@@ -138,8 +162,18 @@ func RegisterEncoder[T, V any](ef EncoderFuncs, f func(T) (V, error)) EncoderFun
 	out := ef.clone()
 
 	ftyp := reflect.TypeOf(f)
-	if ftyp == anyConvFuncType {
-		out.anyConv = reflect.ValueOf(f).Interface().(func(any) (any, error))
+	if ftyp.In(0).Kind() == reflect.Interface {
+		if ftyp.In(0).NumMethod() == 0 {
+			out.anyConv = reflect.ValueOf(f).Interface().(func(any) (any, error))
+			return out
+		}
+
+		out.ifaceFuncs = append(out.ifaceFuncs,
+			encodingFunc{
+				argType: ftyp.In(0),
+				f:       func(v any) (any, error) { return f(v.(T)) },
+			},
+		)
 		return out
 	}
 
