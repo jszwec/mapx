@@ -3,6 +3,7 @@ package mapx
 import (
 	"errors"
 	"reflect"
+	"time"
 )
 
 var defaultEncoder = NewEncoder[any](EncoderOpt{})
@@ -53,19 +54,9 @@ loop:
 			continue
 		}
 
-		if f.typ.Kind() == reflect.Struct {
-			sub, err := e.encode(fv, f.fields)
-			if err != nil {
-				return nil, err
-			}
-			m[f.name] = sub
-			continue
-		}
-
 		dst := fv.Interface()
 
-		switch {
-		case e.opts.EncoderFuncs.m != nil:
+		if e.opts.EncoderFuncs.m != nil {
 			if fn, ok := e.opts.EncoderFuncs.m[f.baseType]; ok {
 				m[f.name], err = fn(fv.Interface())
 				if err != nil {
@@ -73,7 +64,9 @@ loop:
 				}
 				continue
 			}
-		case e.opts.EncoderFuncs.ifaceFuncs != nil:
+		}
+
+		if e.opts.EncoderFuncs.ifaceFuncs != nil {
 			for _, fn := range e.opts.EncoderFuncs.ifaceFuncs {
 				if f.baseType.Implements(fn.argType) {
 					if f.baseType.Kind() == reflect.Pointer && fv.IsNil() {
@@ -95,7 +88,9 @@ loop:
 					continue loop
 				}
 			}
-		case e.opts.EncoderFuncs.anyConv != nil:
+		}
+
+		if e.opts.EncoderFuncs.anyConv != nil {
 			v, err := e.opts.EncoderFuncs.anyConv(dst)
 			if err != nil {
 				return nil, err
@@ -108,6 +103,15 @@ loop:
 			default:
 				dst = v
 			}
+		}
+
+		if f.typ.Kind() == reflect.Struct && !isKnownStruct(f.typ) {
+			sub, err := e.encode(fv, f.fields)
+			if err != nil {
+				return nil, err
+			}
+			m[f.name] = sub
+			continue
 		}
 
 		m[f.name] = dst
@@ -187,4 +191,11 @@ func RegisterEncoder[T, V any](ef EncoderFuncs, f func(T) (V, error)) EncoderFun
 
 	out.m[ftyp.In(0)] = func(v any) (any, error) { return f(v.(T)) }
 	return out
+}
+
+var timeType = reflect.TypeOf((*time.Time)(nil)).Elem()
+
+func isKnownStruct(typ reflect.Type) bool {
+	// we will possibly list more here.
+	return timeType == typ
 }

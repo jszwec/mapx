@@ -92,15 +92,16 @@ loop:
 
 		fv := dst.Field(f.index[0])
 
-		switch {
-		case dec.opt.DecoderFuncs.m != nil:
+		if dec.opt.DecoderFuncs.m != nil {
 			if conv, ok := dec.opt.DecoderFuncs.m[typ]; ok && reflect.PointerTo(fv.Type()) == conv.dst {
 				if err := conv.f(v, fv.Addr().Interface()); err != nil {
 					return err
 				}
 				continue
 			}
-		case dec.opt.DecoderFuncs.ifaceFuncs != nil:
+		}
+
+		if dec.opt.DecoderFuncs.ifaceFuncs != nil {
 			for _, fn := range dec.opt.DecoderFuncs.ifaceFuncs[typ] {
 				if f.typ.AssignableTo(fn.dst) {
 					if err := fn.f(v, fv.Interface()); err != nil {
