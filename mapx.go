@@ -27,3 +27,22 @@ func structFields[T any](tag string) fields {
 	}
 	return nil
 }
+
+func fieldByIndex(v reflect.Value, index []int) reflect.Value {
+	if len(index) == 1 {
+		return v.Field(index[0])
+	}
+
+	for i, x := range index {
+		if i > 0 {
+			if v.Kind() == reflect.Pointer && v.Type().Elem().Kind() == reflect.Struct {
+				if v.IsNil() {
+					return reflect.Value{}
+				}
+				v = v.Elem()
+			}
+		}
+		v = v.Field(x)
+	}
+	return v
+}

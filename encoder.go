@@ -47,7 +47,11 @@ func (e *Encoder[T]) encode(v reflect.Value, fields fields) (_ map[string]any, e
 	m := make(map[string]any, len(fields))
 loop:
 	for _, f := range fields {
-		fv := v.Field(f.index[0])
+		fv := fieldByIndex(v, f.index)
+		if !fv.IsValid() {
+			m[f.name] = nil
+			continue
+		}
 
 		if f.typ.Kind() == reflect.Struct {
 			sub, err := e.encode(fv, f.fields)

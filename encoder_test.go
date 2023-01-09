@@ -21,6 +21,11 @@ type B struct {
 	Map  map[string]int `custom:"-"`
 }
 
+type Embedded struct {
+	A int
+	*B
+}
+
 var stringerEncoder = mapx.RegisterEncoder(mapx.EncoderFuncs{}, func(s fmt.Stringer) (string, error) {
 	return s.String(), nil
 })
@@ -136,6 +141,113 @@ func TestStruct(t *testing.T) {
 				"Bool":    "true",
 				"PtrBool": "true",
 				"NilBool": nil,
+			},
+		},
+		{
+			desc: "embedded",
+			in: &struct {
+				Int Int
+				B
+			}{
+				Int: 5,
+				B: B{
+					B1:   100,
+					Ints: []int{10},
+					Map:  map[string]int{"foo": 1},
+				},
+			},
+			out: map[string]any{
+				"Int":  Int(5),
+				"B1":   100,
+				"Ints": []int{10},
+				"Map":  map[string]int{"foo": 1},
+			},
+		},
+		{
+			desc: "nil embedded",
+			in: &struct {
+				Int Int
+				*B
+			}{
+				Int: 5,
+				B:   nil,
+			},
+			out: map[string]any{
+				"Int":  Int(5),
+				"B1":   nil,
+				"Ints": nil,
+				"Map":  nil,
+			},
+		},
+		{
+			desc: "deep embedded",
+			in: &struct {
+				Int Int
+				*Embedded
+			}{
+				Int:      5,
+				Embedded: &Embedded{A: 100, B: nil},
+			},
+			out: map[string]any{
+				"Int":  Int(5),
+				"A":    100,
+				"B1":   nil,
+				"Ints": nil,
+				"Map":  nil,
+			},
+		},
+		{
+			desc: "embedded field conflict",
+			in: &struct {
+				A
+				B int
+			}{
+				A: A{
+					A1: 100,
+					B:  B{B1: 99},
+				},
+				B: 999,
+			},
+			out: map[string]any{
+				"A1": 100,
+				"B":  999,
+			},
+		},
+		{
+			desc: "inline",
+			in: &struct {
+				Int Int
+				B   B `mapx:",inline"`
+			}{
+				Int: 5,
+				B: B{
+					B1:   100,
+					Ints: []int{10},
+					Map:  map[string]int{"foo": 1},
+				},
+			},
+			out: map[string]any{
+				"Int":  Int(5),
+				"B1":   100,
+				"Ints": []int{10},
+				"Map":  map[string]int{"foo": 1},
+			},
+		},
+		{
+			desc: "inline field conflict",
+			in: &struct {
+				A A `mapx:",inline"`
+				B int
+			}{
+				A: A{
+					A1: 100,
+					B:  B{B1: 99},
+				},
+				B: 999,
+			},
+			out: map[string]any{
+				"A1": 100,
+				"B":  999,
 			},
 		},
 	}
